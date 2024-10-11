@@ -96,7 +96,7 @@ func upload(client Client) (err error) {
 }
 
 func download(content string) error {
-	snippetFile := config.Conf.General.SnippetFile
+	snippetFile := config.ExpandPath(config.Conf.General.SnippetFile)
 
 	var snippets snippet.Snippets
 	if err := snippets.Load(); err != nil {
