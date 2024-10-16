@@ -28,9 +28,8 @@ type SnippetInfo struct {
 func (snippets *Snippets) Load() error {
 	var snippetFiles []string
 
-	if config.Conf.General.SnippetFile != "" {
-		snippetFile := config.ExpandPath(config.Conf.General.SnippetFile)
-
+	snippetFile, err := config.ExpandPath(config.Conf.General.SnippetFile)
+	if err == nil {
 		if _, err := os.Stat(snippetFile); err == nil {
 			snippetFiles = append(snippetFiles, config.Conf.General.SnippetFile)
 		} else if !os.IsNotExist(err) {
@@ -45,24 +44,35 @@ if you only want to provide snippetdirs instead`,
 		}
 	}
 
-	for _, dir := range config.Conf.General.SnippetDirs {
-		if _, err := os.Stat(config.ExpandPath(dir)); err != nil {
+	for _, snippetDir := range config.Conf.General.SnippetDirs {
+		dir, err := config.ExpandPath(snippetDir)
+		if err != nil {
+			return fmt.Errorf("snippet directory not found. %s", snippetDir)
+		}
+
+		if _, err := os.Stat(dir); err != nil {
 			if os.IsNotExist(err) {
-				return fmt.Errorf("snippet directory not found. %s", dir)
+				return fmt.Errorf("snippet directory not found. %s", snippetDir)
 			}
 			return fmt.Errorf("failed to load snippet directory. %v", err)
 		}
-		snippetFiles = append(snippetFiles, getFiles(config.ExpandPath(dir))...)
+
+		snippetFiles = append(snippetFiles, getFiles(dir)...)
 	}
 
 	// Read files and load snippets
 	for _, file := range snippetFiles {
-		tmp := Snippets{}
-		f, err := os.ReadFile(config.ExpandPath(file))
+		file_path, err := config.ExpandPath(file)
 		if err != nil {
 			return fmt.Errorf("failed to load snippet file. %v", err)
 		}
 
+		f, err := os.ReadFile(file_path)
+		if err != nil {
+			return fmt.Errorf("failed to load snippet file. %v", err)
+		}
+
+		tmp := Snippets{}
 		err = toml.Unmarshal(f, &tmp)
 		if err != nil {
 			return fmt.Errorf("failed to parse snippet file. %v", err)
@@ -82,6 +92,7 @@ if you only want to provide snippetdirs instead`,
 func (snippets *Snippets) Save() error {
 	var snippetFile string
 	var newSnippets Snippets
+
 	for _, snippet := range snippets.Snippets {
 		if snippet.Filename == "" {
 			snippetFile = config.Conf.General.SnippetDirs[0] + fmt.Sprintf("%s.toml", strings.ToLower(sanitize.BaseName(snippet.Description)))
@@ -92,7 +103,12 @@ func (snippets *Snippets) Save() error {
 		}
 	}
 
-	f, err := os.Create(config.ExpandPath(snippetFile))
+	file_path, err := config.ExpandPath(snippetFile)
+	if err != nil {
+		return fmt.Errorf("failed to save snippet file. err: %s", err)
+	}
+
+	f, err := os.Create(file_path)
 	if err != nil {
 		return fmt.Errorf("failed to save snippet file. err: %s", err)
 	}
